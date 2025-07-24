@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TCG Practice Buddy</title>
+  <style>
+    :root {
+      --bg-color: #dff0ff;
+      --text-color: #000;
+      --log-bg: #fff;
+      --button-bg: #007acc;
+      --button-color: #fff;
+    }
+
+    body.dark-mode {
+      --bg-color: #121212;
+      --text-color: #f0f0f0;
+      --log-bg: #1e1e1e;
+      --button-bg: #333;
+      --button-color: #f0f0f0;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      padding: 2rem;
+      margin: 0;
+    }
+    h1 {
+      text-align: center;
+    }
+    .hidden {
+      display: none;
+    }
+    button {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      margin: 0.5rem;
+      cursor: pointer;
+      background-color: var(--button-bg);
+      color: var(--button-color);
+      border: none;
+      border-radius: 6px;
+    }
+    #log {
+      max-width: 700px;
+      margin: 1rem auto;
+      background: var(--log-bg);
+      padding: 1rem;
+      border-radius: 8px;
+      text-align: left;
+      height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+    }
+    #toggleDark {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      font-size: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: var(--button-bg);
+    }
+    #landing {
+      text-align: center;
+      margin-top: 4rem;
+    }
+    #confusionPrompt {
+      margin-top: 1rem;
+    }
+    #controls {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+    #turnInfo {
+      text-align: center;
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+      #madeBy {
+      color: #c2185b; /* dark pink for light mode */
+    }
+
+    body.dark-mode #madeBy {
+      color: #ffb6c1; /* pastel pink for dark mode */
+    }
+  </style>
+</head>
+<body>
+  <button id="toggleDark" onclick="toggleDarkMode()">🌙</button>
+  <p id="madeBy" style="text-align: center; margin: 0; font-size: 0.9rem; font-weight: bold;">made by vic (<a href="https://x.com/vicofthestars" target="_blank" style="color: inherit; text-decoration: underline;">@vicofthestars</a>)</p>
+  <h1>TCG Practice Buddy <span style="font-size: 0.6em; font-weight: normal;">v0.2</span></h1>
+  <div id="landing">
+    <p>Decide who goes first:</p>
+    <button onclick="setGoingFirst(true)">Go First</button>
+    <button onclick="setGoingFirst(false)">Go Second</button>
+    <button onclick="flipCoin()">Flip Coin</button>
+  </div>
+
+  <div id="game" class="hidden">
+    <p id="turnInfo">Turn: 1 | Prize Cards Remaining: 6 | Status: None</p>
+    <div id="controls">
+      <button onclick="takePrize()">Take Prize</button>
+      <button onclick="passTurn()">Pass Turn</button>
+      <button onclick="restartGame()">Restart Game</button>
+      <button onclick="confirmSwitch(true)">Switch Active Pokémon</button>
+    </div>
+    <div id="confusionPrompt" class="hidden" style="text-align:center;">
+      <p>You are confused! Flip a coin or switch your Pokémon:</p>
+      <button onclick="flipConfusion()">Flip Coin</button>
+      <button onclick="confirmSwitch(true)">Switch Active Pokémon</button>
+    </div>
+  </div>
+
+  <div id="log" class="hidden"></div>
+
+  <script>
+    let isGoingFirst = true;
+    let supporterLocked = false;
+    let turn = 1;
+    let prizes = 6;
+    let status = "None";
+    let ionoUses = 0;
+    let judgeUses = 0;
+    let stampUsed = false;
+    let tookPrizeLastTurn = false;
+
+    function updateTurnInfo() {
+      document.getElementById("turnInfo").textContent = `Turn: ${turn} | Prize Cards Remaining: ${prizes} | Status: ${status}`;
+    }
+
+    function setGoingFirst(choice) {
+      isGoingFirst = choice;
+      supporterLocked = isGoingFirst;
+      document.getElementById('landing').classList.add('hidden');
+      document.getElementById('game').classList.remove('hidden');
+      document.getElementById('log').classList.remove('hidden');
+      log(`You chose to go ${isGoingFirst ? 'first' : 'second'}. Game started.`);
+      updateTurnInfo();
+    }
+
+    function flipCoin() {
+      const result = Math.random() < 0.5;
+      setGoingFirst(result);
+      log(`Coin flip result: You go ${result ? 'first' : 'second'}.`);
+    }
+
+    function takePrize() {
+      if (prizes > 0) {
+        prizes--;
+        log("You drew a Prize Card!");
+        tookPrizeLastTurn = true;
+        updateTurnInfo();
+      } else {
+        log("All prize cards taken. You win!");
+      }
+    }
+
+    function passTurn() {
+      turn++;
+      status = "None";
+
+      let knockout = false;
+      if (turn > 2 && Math.random() < Math.min(0.15 + 0.05 * (turn - 3), 0.8)) {
+        log("Your active Pokémon was knocked out!");
+        knockout = true;
+      }
+
+      if (!supporterLocked && !knockout) {
+        if (ionoUses < 4 && Math.random() < 0.25) {
+          log(`Your opponent played Iono! You draw ${prizes} cards.`);
+          ionoUses++;
+        } else if (judgeUses < 4 && Math.random() < 0.1) {
+          log("Your opponent played Judge! Both players draw 4 cards.");
+          judgeUses++;
+        } else if (!stampUsed && tookPrizeLastTurn && Math.random() < 0.1) {
+          log("Your opponent used ACE SPEC: Unfair Stamp! You draw 2, opponent draws 5.");
+          stampUsed = true;
+        } else {
+          const r = Math.random();
+          if (r < 0.12) {
+            status = "Confused";
+            log("You were inflicted with Confusion.");
+            document.getElementById("confusionPrompt").classList.remove("hidden");
+          } else if (r < 0.19 && turn > 1) {
+            status = "Retreat Locked";
+            log("You are under Retreat Lock this turn.");
+          } else if (r < 0.32) {
+            status = "Item Locked";
+            log("You are under Item Lock this turn.");
+          } else if (turn > 2) {
+            const messages = [
+              "Your opponent whiffed the one supporter they needed and passed. Sucks for them.",
+              "Your opponent whiffed an energy for turn and couldn't attack, so they just passed. That hurts.",
+              "Your opponent drew poorly and just passed the turn."
+            ];
+            log(messages[Math.floor(Math.random() * messages.length)]);
+          }
+        }
+      } else if (!knockout && turn <= 2) {
+        log("Your opponent bricked and passed their opening turn.");
+      }
+
+      tookPrizeLastTurn = false;
+      supporterLocked = false;
+      updateTurnInfo();
+    }
+
+    function restartGame() {
+      turn = 1;
+      prizes = 6;
+      status = "None";
+      ionoUses = 0;
+      judgeUses = 0;
+      stampUsed = false;
+      tookPrizeLastTurn = false;
+      document.getElementById('log').innerHTML = "";
+      document.getElementById("confusionPrompt").classList.add("hidden");
+      document.getElementById("game").classList.add("hidden");
+      document.getElementById("log").classList.add("hidden");
+      document.getElementById("landing").classList.remove("hidden");
+      log("Game restarted.");
+    }
+
+    function flipConfusion() {
+      const heads = Math.random() < 0.5;
+      if (heads) {
+        log("You flipped heads and attacked successfully!");
+      } else {
+        log("You flipped tails and hurt yourself for 30 damage.");
+      }
+      document.getElementById("confusionPrompt").classList.add("hidden");
+    }
+
+    function confirmSwitch(switched) {
+      if (switched) {
+        if (status === "Confused") {
+          log("You switched out. Confusion removed.");
+        } else if (status === "Retreat Locked") {
+          log("You switched out. The retreat lock was broken!");
+        } else {
+          log("You switched your active Pokémon.");
+        }
+        status = "None";
+        updateTurnInfo();
+      } else {
+        log("You remained Confused.");
+      }
+      document.getElementById("confusionPrompt").classList.add("hidden");
+    }
+
+    function toggleDarkMode() {
+      const body = document.body;
+      const toggleBtn = document.getElementById("toggleDark");
+      body.classList.toggle("dark-mode");
+      toggleBtn.textContent = body.classList.contains("dark-mode") ? "☀️" : "🌙";
+    }
+
+    function log(message) {
+      const logDiv = document.getElementById('log');
+      const newEntry = document.createElement('div');
+      newEntry.textContent = message;
+      logDiv.appendChild(newEntry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+  </script>
+</body>
+</html>
